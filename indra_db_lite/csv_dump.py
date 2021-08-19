@@ -120,7 +120,11 @@ def best_content_table(output_location: str) -> None:
     """
     query = """
     SELECT DISTINCT ON (text_ref.id)
-        text_ref.id as text_ref_id, pmid_num as pmid, text_type, content
+        text_ref.id as text_ref_id,
+        pmid_num as pmid,
+        text_type,
+        text_content.id as text_content_id,
+        content
     FROM
         text_content
     JOIN
