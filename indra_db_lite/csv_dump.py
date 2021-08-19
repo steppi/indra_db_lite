@@ -102,3 +102,40 @@ def query_to_csv(
         f"\\copy ({query}) to {output_location} with csv",
     ]
     subprocess.run(command)
+
+
+def best_content_table(output_location: str) -> None:
+    """Dumps table with best content for each text_ref_id to csv
+
+    Output table has columns text_ref_id, pmid, text_type, content
+    where text_ref_id is an id for a row in indra_db's text_ref table,
+    pmid is the corresponding pmid if one exists, text_type is the
+    type of content (one of "fulltext", "abstract", or "title"), content
+    is a binary blob containing compressed text content.
+
+    Parameters
+    ----------
+    output_location : str
+        Path to where output is to be stored.
+    """
+    query = """
+    SELECT DISTINCT ON (text_ref.id)
+        text_ref.id as text_ref_id, pmid_num as pmid, text_type, content
+    FROM
+        text_content
+    JOIN
+        text_ref
+    ON
+        text_ref.id = text_content.text_ref_id AND
+        content is NOT NULL
+    ORDER BY
+        text_ref.id,
+        CASE text_type
+            WHEN 'fulltext' THEN 0
+            WHEN 'abstract' THEN 1
+            WHEN 'title' THEN 2
+            ELSE 3
+        END,
+        pmid_num
+    """
+    query_to_csv(query, output_location)
