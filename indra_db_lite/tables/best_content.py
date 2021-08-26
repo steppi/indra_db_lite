@@ -1,13 +1,15 @@
 import os
 import json
+import logging
 import subprocess
 import pandas as pd
 from multiprocessing import Pool
 from indra_db.util.helpers import unpack
 from indra.literature.adeft_tools import universal_extract_paragraphs
 
-
 from indra_db_lite.csv import query_to_csv
+
+logger = logging.getLogger(__name__)
 
 
 def abstracts_to_csv_raw(outpath: str) -> None:
@@ -78,9 +80,16 @@ def process_raw_abstracts_csv(
         of rows of the input csv to process at a time to reduce memory
         consumption. Default: 1000000
     """
-    if os.path.exists(outpath):
+    if os.path.exists(inpath) and os.path.exists(outpath):
         if restart:
+            logger.info(
+                "Restarting: getting the number of rows that have already"
+                " been processed."
+            )
             num_processed_rows = _get_line_count(outpath)
+            logger.info(
+                f"{num_processed_rows} have already been processed."
+            )
         else:
             # Remove outpath if it already exists. The csv is written to
             # incrementally and the header is only added if the file does
@@ -94,7 +103,12 @@ def process_raw_abstracts_csv(
             skiprows=range(1, num_processed_rows + 1),
             names=['text_ref_id', 'tc_id1', 'tc_id2', 'title', 'abstract'],
     ) as reader:
-        for chunk in reader:
+        for i, chunk in enumerate(reader):
+            chunk_start = num_processed_rows + i * chunksize + 1
+            chunk_end = chunk_start + chunksize - 1
+            logger.info(
+                f"Processing texts {chunk_start}:{chunk_end}"
+            )
             chunk.loc[:, 'abstract'] = chunk.abstract.apply(
                 lambda x: unpack(bytes.fromhex(x))
             )
@@ -109,6 +123,7 @@ def process_raw_abstracts_csv(
             output = chunk[
                 ['text_ref_id', 'tc_id1', 'tc_id2', 'text_type', 'content']
             ]
+            logger.info("Writing current chunk.")
             output.to_csv(
                 outpath,
                 mode='a',
@@ -190,9 +205,16 @@ def process_raw_fulltexts_csv(
     # To allow for restarts, track number of rows that already have been
     # processed.
     num_processed_rows = 0
-    if os.path.exists(outpath):
+    if os.path.exists(inpath) and os.path.exists(outpath):
         if restart:
+            logger.info(
+                "Restarting: getting the number of rows that have already"
+                " been processed."
+            )
             num_processed_rows = _get_line_count(outpath)
+            logger.info(
+                f"{num_processed_rows} have already been processed."
+            )
         else:
             # Remove outpath if it already exists. The csv is written to
             # incrementally and the header is only added if the file does
@@ -206,8 +228,14 @@ def process_raw_fulltexts_csv(
             skiprows=range(1, num_processed_rows + 1),
             names=['text_ref_id', 'tc_id1', 'fulltext'],
     ) as reader:
-        for chunk in reader:
+        for i, chunk in enumerate(reader):
+            chunk_start = num_processed_rows + i * chunksize + 1
+            chunk_end = chunk_start + chunksize - 1
+            logger.info(
+                f"Processing texts {chunk_start}:{chunk_end}"
+            )
             with Pool(n_jobs) as pool:
+                logger.info("Extracting paragraphs from compressed texts.")
                 fulltexts = pool.map(_extract_then_dump, chunk.fulltext)
             # Purge now unneeded column allow garbage collector to reduce
             # memory usage.
@@ -219,6 +247,7 @@ def process_raw_fulltexts_csv(
             output = chunk[
                 ['text_ref_id', 'tc_id1', 'tc_id2', 'text_type', 'content']
             ]
+            logger.info("Writing current chunk.")
             output.to_csv(
                 outpath,
                 mode='a',
