@@ -202,3 +202,24 @@ def _extract_then_dump(hex_string: str) -> str:
             unpack(bytes.fromhex(hex_string))
         )
     )
+def pmid_text_ref_id_to_csv(outpath: str) -> None:
+    """Generate csv table mapping pmids to text_ref_ids.
+
+    Generated csv has two columns, the first containing a pmid and their
+    second the corresponding id for the associated document in the indra_db's
+    text_ref table. The generated table has no headers.
+
+    Parameters
+    ----------
+    outpath : str
+        Path to location where output will be stored.
+    """
+    pmids_query = """
+    SELECT
+        pmid, id
+    FROM
+        text_ref
+    WHERE
+        pmid is not NULL
+    """
+    query_to_csv(pmids_query, outpath)
