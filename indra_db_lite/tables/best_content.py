@@ -109,6 +109,7 @@ def process_raw_abstracts_csv(
         of rows of the input csv to process at a time to reduce memory
         consumption. Default: 1000000
     """
+    num_processed_rows = 0
     if os.path.exists(inpath) and os.path.exists(outpath):
         if restart:
             logger.info(
