@@ -12,6 +12,35 @@ from indra_db_lite.csv import query_to_csv
 logger = logging.getLogger(__name__)
 
 
+def titles_to_csv_raw(outpath: str) -> None:
+    """Create csv file containing titles at location specified by path.
+
+    Output csv has three columns. There is no header but we refer to the
+    columns in order as "text_ref_id", "text_content_id", "title".
+    "text_ref_id" contains the id for a document in the text_ref columns in
+    indra_db.  "text_content_id" contains the id for the title of this
+    document in the text_content table of indra_db. "title" contains the hex
+    encoded Postgres bytea data for the compressed title.
+
+    Parameters
+    ----------
+    outpath : str
+        Path to location where output file is to be stored.
+    """
+    titles_query = """
+    SELECT
+        tc.text_ref_id AS text_ref_id,
+        tc.id AS tc_id,
+        encode(tc.content, 'hex') AS title
+    FROM
+        text_content tc
+    WHERE
+        tc.text_type = 'title' AND
+        tc.content IS NOT NULL
+    """
+    query_to_csv(titles_query, outpath)
+
+
 def abstracts_to_csv_raw(outpath: str) -> None:
     """Creates csv file containing abstracts at location specified by path.
 
