@@ -1,8 +1,73 @@
+from contextlib import closing
+from contextlib import contextmanager
 import logging
+from sqlalchemy import text
+import sqlite3
 import subprocess
+from typing import List
+
+
 from indra_db.config import get_databases
+from indra_db.util import get_db
+
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def managed_db(db_label: str = "primary", protected: bool = False):
+    db = get_db(db_label, protected)
+    try:
+        yield db
+    finally:
+        db.session.rollback()
+        db.session.close()
+
+
+def _get_postgres_tables(db_label: str = "primary") -> List[str]:
+    query = "SELECT table_name FROM information_schema.tables"
+    with managed_db(db_label) as db:
+        res = db.session.execute(query)
+    if not res:
+        return []
+    return [row[0] for row in res]
+
+
+def _get_sqlite_tables(sqlite_db_path: str) -> List[str]:
+    query = """--
+    SELECT
+        name
+    FROM
+        sqlite_master
+    WHERE
+        type = 'table' AND
+        name NOT LIKE 'sqlite_%'
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            result = cur.execute(query).fetchall()
+    if not result:
+        return []
+    return [row[0] for row in result]
+
+
+def get_row_count_postgres(table_name: str, db_label: str = "primary") -> int:
+    assert table_name in _get_postgres_tables(db_label)
+    query = text(f"SELECT COUNT(*) FROM {table_name}")
+    with managed_db(db_label) as db:
+        result = db.session.execute(query).fetchall()
+    if not result:
+        return 0
+    return result[0][0]
+
+
+def get_row_count_sqlite(table_name: str, sqlite_db_path: str) -> int:
+    assert table_name in _get_sqlite_tables(sqlite_db_path)
+    query = f"SELECT COUNT(*) FROM {table_name}"
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            result = cur.execute(query).fetchall()
+    return result[0][0]
 
 
 def query_to_csv(
@@ -102,3 +167,20 @@ def _find_disallowed_keywords(query: str) -> list:
 
     query_token_set = set(token.lower() for token in query.split())
     return list(query_token_set & set(disallowed))
+
+
+def import_csv_into_sqlite(
+        csv_table_path: str,
+        table_name: str,
+        sqlite_db_path: str
+) -> None:
+    """Load csv into sqlite database."""
+    subprocess.run(
+        [
+            'sqlite3',
+            '-separator',
+            ',',
+            sqlite_db_path,
+            f".import {csv_table_path} {table_name}",
+        ]
+    )
