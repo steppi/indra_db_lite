@@ -24,7 +24,7 @@ def managed_db(db_label: str = "primary", protected: bool = False):
         db.session.close()
 
 
-def _get_postgres_tables(db_label: str = "primary") -> List[str]:
+def get_postgres_tables(db_label: str = "primary") -> List[str]:
     query = "SELECT table_name FROM information_schema.tables"
     with managed_db(db_label) as db:
         res = db.session.execute(query)
@@ -33,7 +33,7 @@ def _get_postgres_tables(db_label: str = "primary") -> List[str]:
     return [row[0] for row in res]
 
 
-def _get_sqlite_tables(sqlite_db_path: str) -> List[str]:
+def get_sqlite_tables(sqlite_db_path: str) -> List[str]:
     query = """--
     SELECT
         name
@@ -52,7 +52,7 @@ def _get_sqlite_tables(sqlite_db_path: str) -> List[str]:
 
 
 def get_row_count_postgres(table_name: str, db_label: str = "primary") -> int:
-    assert table_name in _get_postgres_tables(db_label)
+    assert table_name in get_postgres_tables(db_label)
     query = text(f"SELECT COUNT(*) FROM {table_name}")
     with managed_db(db_label) as db:
         result = db.session.execute(query).fetchall()
@@ -62,7 +62,7 @@ def get_row_count_postgres(table_name: str, db_label: str = "primary") -> int:
 
 
 def get_row_count_sqlite(table_name: str, sqlite_db_path: str) -> int:
-    assert table_name in _get_sqlite_tables(sqlite_db_path)
+    assert table_name in get_sqlite_tables(sqlite_db_path)
     query = f"SELECT COUNT(*) FROM {table_name}"
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
