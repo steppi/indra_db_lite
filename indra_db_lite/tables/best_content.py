@@ -387,6 +387,20 @@ def load_best_content_table(
             cur.execute('PRAGMA journal_mode = DELETE')
 
 
+def add_index_to_best_content_table(sqlite_db_path: str) -> None:
+    """Make queries to best content table more efficient."""
+    query = """--
+    CREATE INDEX IF NOT EXISTS
+        best_content_text_ref_id_idx
+    ON
+        best_content(text_ref_id)
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(query)
+        conn.commit()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("outpath")
@@ -521,6 +535,8 @@ if __name__ == '__main__':
         f' {num_content} possible rows.'
     )
     logger.info("Successfully loaded best content table.")
+    logger.info("Adding index to best content table.")
+    add_index_to_best_content_table(best_content_db_path)
     if num_rows_best_content == num_content:
         logger.info('Removing temporary text content db')
         os.remove(temp_db_path)
