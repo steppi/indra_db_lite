@@ -60,11 +60,11 @@ from typing import Generator
 from indra.literature.adeft_tools import universal_extract_paragraphs
 from indra_db.util.helpers import unpack
 
-from indra_db_lite.csv import get_row_count_postgres
-from indra_db_lite.csv import get_row_count_sqlite
-from indra_db_lite.csv import get_sqlite_tables
-from indra_db_lite.csv import import_csv_into_sqlite
-from indra_db_lite.csv import query_to_csv
+from indra_db_lite.construction import get_row_count_postgres
+from indra_db_lite.construction import get_row_count_sqlite
+from indra_db_lite.construction import get_sqlite_tables
+from indra_db_lite.construction import import_csv_into_sqlite
+from indra_db_lite.construction import query_to_csv
 
 
 def _extract_then_dump(hex_string: str) -> str:
