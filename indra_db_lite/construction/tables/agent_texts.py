@@ -56,16 +56,6 @@ def content_text_refs_to_csv(outpath: str) -> None:
     query_to_csv(query, outpath)
 
 
-def pmid_text_refs_to_csv(outpath: str) -> None:
-    query = """
-    SELECT DISTINCT
-        pmid_num, id
-    FROM
-        text_ref
-    """
-    query_to_csv(query, outpath)
-
-
 def create_temp_agent_text_tables(
         agent_stmts_path: str,
         stmt_readings_path: str,
@@ -194,44 +184,6 @@ def create_agent_texts_table(sqlite_db_path: str) -> None:
         conn.commit()
 
 
-def create_pmid_text_ref_table(
-        pmid_text_refs_path: str, sqlite_db_path: str
-) -> None:
-    query = """--
-    CREATE TABLE IF NOT EXISTS pmid_text_refs (
-    pmid INTEGER PRIMARY KEY,
-    text_ref_id INTEGER,
-    UNIQUE(text_ref_id)
-    );
-    """
-    with closing(sqlite3.connect(sqlite_db_path)) as conn:
-        with closing(conn.cursor()) as cur:
-            cur.execute(query)
-        conn.commit()
-    import_csv_into_sqlite(
-        pmid_text_refs_path,
-        'pmid_text_refs',
-        sqlite_db_path
-    )
-    index_query1 = """--
-    CREATE INDEX IF NOT EXISTS
-        pmid_text_refs_pmid_idx
-    ON
-        pmid_text_refs(pmid)
-    """
-    index_query2 = """--
-    CREATE INDEX IF NOT EXISTS
-        pmid_text_refs_text_ref_id_idx
-    ON
-        pmid_text_refs(text_ref_id)
-    """
-    with closing(sqlite3.connect(sqlite_db_path)) as conn:
-        with closing(conn.cursor()) as cur:
-            for query in index_query1, index_query2:
-                cur.execute(query)
-        conn.commit()
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('outpath')
@@ -283,23 +235,3 @@ if __name__ == '__main__':
     if 'agent_texts' not in get_sqlite_tables(agent_texts_db_path):
         logger.info('Constructing agent texts table with one big join.')
         create_agent_texts_table(agent_texts_db_path)
-
-    with closing(sqlite3.connect(agent_texts_db_path)) as conn:
-        with closing(conn.cursor()) as cur:
-            for table in {
-                    'agent_stmts',
-                    'stmt_readings',
-                    'reading_content',
-                    'content_text_refs',
-            } & set(get_sqlite_tables(agent_texts_db_path)):
-                logger.info(
-                    f"Dropping temporary table {table}"
-                )
-                cur.execute(f"DROP TABLE {table}")
-            cur.execute("VACUUM")
-
-    if 'pmid_text_refs' not in get_sqlite_tables(agent_texts_db_path):
-        logger.info("Dumping pmid to text_ref map to csv.")
-        pmid_text_refs_to_csv(os.path.join(outpath, 'pmid_text_refs.csv'))
-        create_pmid_text_ref_table('pmid_text_refs.csv', agent_texts_db_path)
-        os.remove(os.path.join(outpath, 'pmid_text_refs.csv'))
