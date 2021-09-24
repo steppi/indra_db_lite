@@ -91,16 +91,15 @@ def text_content_to_csv(outpath: str) -> None:
 
 def ensure_text_content_table(sqlite_db_path: str) -> None:
     """Create the local text_content table if it doesn't exist."""
-    query = \
-        """-- Create text content table if it doesn't exist
-        CREATE TABLE IF NOT EXISTS text_content (
-            id INTEGER PRIMARY KEY,
-            text_ref_id INTEGER NOT NULL,
-            text_type TEXT NOT NULL,
-            source TEXT NOT NULL,
-            content TEXT NOT NULL
-        );
-        """
+    query = """-- Create text content table if it doesn't exist
+    CREATE TABLE IF NOT EXISTS text_content (
+        id INTEGER PRIMARY KEY,
+        text_ref_id INTEGER NOT NULL,
+        text_type TEXT NOT NULL,
+        source TEXT NOT NULL,
+        content TEXT NOT NULL
+    );
+    """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(query)
