@@ -12,8 +12,7 @@ from indra.databases.hgnc_client import get_hgnc_from_entrez
 from protmapper.uniprot_client import get_id_from_entrez
 
 from indra_db_lite.construction import get_sqlite_tables
-from indra_db_lite.construction import import_csv_into_sqlite
-from indra_db_lite.construction import query_to_csv
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,24 +31,34 @@ def _get_hgnc_from_entrez_wrap(x):
     return result
 
 
-url = "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2pubmed.gz"
-
-
-def download_gzip_file(url: str, outpath: str) -> None:
+def download_entrez_pmids(outpath: str) -> None:
     """Download and decompress entrez gene to pmid file."""
-    response = requests.get(url)
+    entrez_pmid_url = "https://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2pubmed.gz"
+    response = requests.get(entrez_pmid_url)
     compressed_file = io.BytesIO(response.content)
     decompressed_file = gzip.GzipFile(fileobj=compressed_file)
     with open(outpath, 'wb') as f:
         f.write(decompressed_file.read())
 
 
-def load_entrez_gene_to_pmid_to_dataframe(path: str) -> pd.DataFrame:
-    """Load entrez gene to pmid table into a pandas dataframe."""
-    with open(path, 'rb') as f:
-        table_bytes = io.BytesIO(f.read())
+def create_entrez_pmids_table(
+        table_path: str, sqlite_db_path
+) -> pd.DataFrame:
+    query = """--
+    CREATE TABLE IF NOT EXISTS entrez_pmids (
+        id INTEGER PRIMARY KEY,
+        taxon_id INTEGER,
+        entrez_id INTEGER,
+        uniprot_id INTEGER,
+        hgnc_id INTEGER,
+        pmid INTEGER
+    );
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(query)
     df = pd.read_csv(
-        table_bytes,
+        table_path,
         sep='\t',
         names=['taxon_id', 'entrez_id', 'pmid'],
         comment='#',
@@ -57,4 +66,58 @@ def load_entrez_gene_to_pmid_to_dataframe(path: str) -> pd.DataFrame:
     )
     df['uniprot_id'] = df.entrez_id.apply(_get_up_from_entrez_wrap)
     df['hgnc_id'] = df.entrez_id.apply(_get_hgnc_from_entrez_wrap)
-    return df
+    df = df[['taxon_id', 'entrez_id', 'uniprot_id', 'hgnc_id', 'pmid']]
+    df = df.reset_index().rename({'index': 'id'}, axis=1)
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        df.to_sql('entrez_pmids', conn, if_exists='append', index=False)
+        with closing(conn.cursor()) as cur:
+            for query in [
+                    """--
+                CREATE INDEX IF NOT EXISTS
+                    entrez_pmids_entrez_id_idx
+                ON
+                    entrez_pmids(entrez_id)
+                    """,
+                    """--
+                CREATE INDEX IF NOT EXISTS
+                    entrez_pmids_uniprot_id_idx
+                ON
+                    entrez_pmids(uniprot_id)
+                    """,
+                    """--
+                CREATE INDEX IF NOT EXISTS
+                    entrez_pmids_hgnc_id_idx
+                ON
+                    entrez_pmids(hgnc_id)
+                    """,
+            ]:
+                cur.execute(query)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("outpath")
+    args = parser.parse_args()
+    outpath = args.outpath
+
+    entrez_pmids_csv_path = os.path.join(outpath, 'entrez_pmids.csv')
+    entities_db_path = os.path.join(outpath, 'entities.db')
+
+    logging.basicConfig(
+        filename=os.path.join(outpath, 'entities.log'),
+        filemode='a',
+        format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+        datefmt='%m-%d %H:%M',
+        level=logging.DEBUG,
+        force=True,
+    )
+    logger = logging.getLogger(__name__)
+
+    if (
+            not os.path.exists(entities_db_path) or
+            'entrez_pmids' not in get_sqlite_tables(entities_db_path)
+    ):
+        logger.info("Download entrez id to pmid map.")
+        download_entrez_pmids(entrez_pmids_csv_path)
+        logger.info("Creating entrez pmid sqlite table")
+        create_entrez_pmids_table(entrez_pmids_csv_path, entities_db_path)
