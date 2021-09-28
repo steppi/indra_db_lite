@@ -47,7 +47,7 @@ def ensure_entrez_pmids_table(sqlite_db_path: str):
         id INTEGER PRIMARY KEY,
         taxon_id INTEGER,
         entrez_id INTEGER,
-        uniprot_id INTEGER,
+        uniprot_id TEXT,
         hgnc_id INTEGER,
         pmid INTEGER
     );
@@ -55,6 +55,7 @@ def ensure_entrez_pmids_table(sqlite_db_path: str):
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(query)
+        conn.commit()
 
 
 def create_entrez_pmids_table(
@@ -74,6 +75,7 @@ def create_entrez_pmids_table(
     df = df.reset_index().rename({'index': 'id'}, axis=1)
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         df.to_sql('entrez_pmids', conn, if_exists='append', index=False)
+        conn.commit()
 
 
 if __name__ == "__main__":
