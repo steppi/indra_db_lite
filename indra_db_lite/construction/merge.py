@@ -81,8 +81,6 @@ def move_table(from_db_path: str, to_db_path: str, table_name: str):
     with closing(sqlite3.connect(to_db_path)) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute("ATTACH ? AS from_db;", (from_db_path, ))
-            cur.execute('PRAGMA journal_mode = WAL')
-            cur.execute('PRAGMA synchronous = NORMAL')
             query = f"""--
             INSERT INTO
                 {table_name}
@@ -90,7 +88,6 @@ def move_table(from_db_path: str, to_db_path: str, table_name: str):
             """
             cur.execute(query)
             conn.commit()
-            cur.execute('PRAGMA journal_mode = DELETE')
             cur.execute("DETACH from_db;")
 
 
