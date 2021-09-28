@@ -14,49 +14,35 @@ logger = logging.getLogger(__name__)
 def pmid_text_refs_to_csv(outpath: str) -> None:
     query = """
     SELECT DISTINCT
-        pmid_num, id
+        id, pmid_num
     FROM
         text_ref
     """
     query_to_csv(query, outpath)
 
 
-def create_pmid_text_ref_table(
-        pmid_text_refs_path: str, sqlite_db_path: str
-) -> None:
+def ensure_pmid_text_ref_table(sqlite_db_path: str) -> None:
     query = """--
     CREATE TABLE IF NOT EXISTS pmid_text_refs (
-    pmid INTEGER PRIMARY KEY,
-    text_ref_id INTEGER,
-    UNIQUE(text_ref_id)
+    text_ref_id INTEGER PRIMARY KEY,
+    pmid INTEGER
     );
     """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(query)
         conn.commit()
+
+
+def create_pmid_text_ref_table(
+        pmid_text_refs_path: str, sqlite_db_path: str
+) -> None:
+    ensure_pmid_text_ref_table(sqlite_db_path)
     import_csv_into_sqlite(
         pmid_text_refs_path,
         'pmid_text_refs',
         sqlite_db_path
     )
-    index_query1 = """--
-    CREATE INDEX IF NOT EXISTS
-        pmid_text_refs_pmid_idx
-    ON
-        pmid_text_refs(pmid)
-    """
-    index_query2 = """--
-    CREATE INDEX IF NOT EXISTS
-        pmid_text_refs_text_ref_id_idx
-    ON
-        pmid_text_refs(text_ref_id)
-    """
-    with closing(sqlite3.connect(sqlite_db_path)) as conn:
-        with closing(conn.cursor()) as cur:
-            for query in index_query1, index_query2:
-                cur.execute(query)
-        conn.commit()
 
 
 if __name__ == '__main__':

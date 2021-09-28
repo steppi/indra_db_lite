@@ -41,9 +41,7 @@ def download_entrez_pmids(outpath: str) -> None:
         f.write(decompressed_file.read())
 
 
-def create_entrez_pmids_table(
-        table_path: str, sqlite_db_path
-) -> pd.DataFrame:
+def ensure_entrez_pmids_table(sqlite_db_path: str):
     query = """--
     CREATE TABLE IF NOT EXISTS entrez_pmids (
         id INTEGER PRIMARY KEY,
@@ -57,6 +55,12 @@ def create_entrez_pmids_table(
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
             cur.execute(query)
+
+
+def create_entrez_pmids_table(
+        table_path: str, sqlite_db_path: str
+) -> pd.DataFrame:
+    ensure_entrez_pmids_table(sqlite_db_path)
     df = pd.read_csv(
         table_path,
         sep='\t',
@@ -70,28 +74,6 @@ def create_entrez_pmids_table(
     df = df.reset_index().rename({'index': 'id'}, axis=1)
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         df.to_sql('entrez_pmids', conn, if_exists='append', index=False)
-        with closing(conn.cursor()) as cur:
-            for query in [
-                    """--
-                CREATE INDEX IF NOT EXISTS
-                    entrez_pmids_entrez_id_idx
-                ON
-                    entrez_pmids(entrez_id)
-                    """,
-                    """--
-                CREATE INDEX IF NOT EXISTS
-                    entrez_pmids_uniprot_id_idx
-                ON
-                    entrez_pmids(uniprot_id)
-                    """,
-                    """--
-                CREATE INDEX IF NOT EXISTS
-                    entrez_pmids_hgnc_id_idx
-                ON
-                    entrez_pmids(hgnc_id)
-                    """,
-            ]:
-                cur.execute(query)
 
 
 if __name__ == "__main__":

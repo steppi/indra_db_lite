@@ -134,6 +134,20 @@ def add_indices_to_temp_agent_text_tables(sqlite_db_path: str) -> None:
         conn.commit()
 
 
+def ensure_agent_texts_table(sqlite_db_path: str) -> None:
+    query = """--
+    CREATE TABLE IF NOT EXISTS agent_texts (
+    id INTEGER PRIMARY KEY,
+    agent_text TEXT,
+    text_ref_id INTEGER
+    );
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(query)
+        conn.commit()
+
+
 def create_agent_texts_table(sqlite_db_path: str) -> None:
     all_tables = get_sqlite_tables(sqlite_db_path)
     needed_tables = {
@@ -143,15 +157,8 @@ def create_agent_texts_table(sqlite_db_path: str) -> None:
         assert needed_tables <= set(all_tables)
     except AssertionError:
         logger.exception('Necessary temporary tables do not exist.')
-
-    create_table_query = """--
-    CREATE TABLE IF NOT EXISTS agent_texts (
-    id INTEGER PRIMARY KEY,
-    agent_text TEXT,
-    text_ref_id INTEGER
-    );
-    """
-    insert_query = """--
+    ensure_agent_texts_table(sqlite_db_path)
+    query = """--
     INSERT OR IGNORE INTO
         agent_texts
     SELECT
@@ -171,16 +178,9 @@ def create_agent_texts_table(sqlite_db_path: str) -> None:
     ON
         rc.text_content_id = ct.text_content_id
     """
-    index_query = """--
-    CREATE INDEX IF NOT EXISTS
-        agent_texts_agent_text_idx
-    ON
-        agent_texts(agent_text)
-    """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
-            for query in create_table_query, insert_query, index_query:
-                cur.execute(query)
+            cur.execute(query)
         conn.commit()
 
 
