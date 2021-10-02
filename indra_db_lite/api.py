@@ -1,37 +1,109 @@
+import re
 from contextlib import closing
 import json
 import sqlite3
-from typing import Collection, Dict, List, Optional
+from typing import Collection, Dict, List, Iterator, Optional, Tuple, Union
 
 from indra_db_lite.locations import INDRA_DB_LITE_LOCATION
 
 
-def get_paragraphs_for_text_ref_ids(
-        text_ref_ids: Collection[int],
-        text_types: Optional[Collection[str]] = None,
-) -> Dict[int, List[str]]:
-    if text_types is None:
-        text_types = ('fulltext', 'abstract', 'title')
+def _filter_paragraphs(
+        paragraphs: List[int],
+        contains: Optional[Union[List[str], str]] = None
+):
+    """Filter paragraphs to only those containing one of a list of strings
+
+    Parameters
+    ----------
+    paragraphs : list of str
+        List of plaintext paragraphs from an article
+
+    contains : str or list of str
+        Exclude paragraphs not containing this string as a token, or
+        at least one of the strings in contains if it is a list
+
+    Returns
+    -------
+    str
+        Plaintext consisting of all input paragraphs containing at least
+        one of the supplied tokens.
+    """
+    if contains is None:
+        pattern = ''
     else:
-        text_types = tuple(text_types)
+        if isinstance(contains, str):
+            contains = [contains]
+        pattern = '|'.join(r'[^\w]%s[^\w]' % re.escape(shortform)
+                           for shortform in contains)
+    paragraphs = [p for p in paragraphs if re.search(pattern, p)]
+    return '\n'.join(paragraphs) + '\n'
+
+
+class TextContent:
+    __slots__ = ['fulltexts', 'abstracts', 'titles']
+
+    def __init__(
+            self, content_rows: Iterator[Tuple[int, str, List[str]]]
+    ) -> None:
+        self.fulltexts: Dict[int, Union[List[str], str]] = {}
+        self.abstracts: Dict[int, Union[List[str], str]] = {}
+        self.titles: Dict[int, Union[List[str], str]] = {}
+        for text_ref_id, text_type, content in content_rows:
+            content = json.loads(content)
+            if text_type == 'fulltext':
+                self.fulltexts[text_ref_id] = content
+            if text_type == 'abstract':
+                self.abstracts[text_ref_id] = content
+            if text_type == 'title':
+                self.titles[text_ref_id] = content
+
+    def __len__(self):
+        return len(self.fulltexts) + len(self.abstracts) + len(self.titles)
+
+    def to_plaintexts(self, contains: Optional[str] = None):
+        self.fulltexts = {
+            text_ref_id: _filter_paragraphs(paragraphs)
+            for text_ref_id, paragraphs in self.fulltexts.items()
+        }
+        self.abstracts = {
+            text_ref_id: _filter_paragraphs(paragraphs)
+            for text_ref_id, paragraphs in self.abstracts.items()
+        }
+        self.titles = {
+            text_ref_id: _filter_paragraphs(paragraphs)
+            for text_ref_id, paragraphs in self.titles.items()
+        }
+
+    def __str__(self):
+        return (
+            f"TextContent({len(self.fulltexts)} fulltexts,"
+            f" {len(self.abstracts)} abstracts,"
+            f" {len(self.titles)} titles)"
+        )
+
+    def __repr__(self):
+        return str(self)
+
+
+def get_paragraphs_for_text_ref_ids(
+        text_ref_ids: Collection[int]
+) -> Dict[int, List[str]]:
     text_ref_ids = tuple(text_ref_ids)
     query = f"""SELECT
-                text_ref_id, content
+                text_ref_id, text_type, content
             FROM
                 best_content
             WHERE
-                text_ref_id IN ({','.join(['?']*len(text_ref_ids))}) AND
-                text_type in ({','.join(['?']*len(text_types))})
+                text_ref_id IN ({','.join(['?']*len(text_ref_ids))})
     """
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
-            paragraphs_list = cur.execute(
-                query, text_ref_ids + text_types
-            ).fetchall()
-    return {
-        text_ref_id: json.loads(paragraphs)
-        for text_ref_id, paragraphs in paragraphs_list
-    }
+            rows = (
+                tuple(row) for row in cur.execute(
+                    query, text_ref_ids
+                ).fetchall()
+            )
+    return TextContent(rows)
 
 
 def get_text_ref_ids_for_pmids(
