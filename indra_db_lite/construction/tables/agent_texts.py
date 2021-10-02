@@ -162,21 +162,25 @@ def create_agent_texts_table(sqlite_db_path: str) -> None:
     INSERT OR IGNORE INTO
         agent_texts
     SELECT
-        NULL, ags.agent_text, ct.text_content_id
-    FROM
-        agent_stmts ags
-    JOIN
-        stmt_readings sr
-    ON
-        ags.stmt_id = sr.stmt_id
-    JOIN
-        reading_content rc
-    ON
-        sr.reading_id = rc.reading_id
-    JOIN
-        content_text_refs ct
-    ON
-        rc.text_content_id = ct.text_content_id
+        NULL, agent_text, text_ref_id
+    FROM (
+        SELECT DISTINCT
+            ags.agent_text as agent_text, ct.text_ref_id as text_ref_id
+        FROM
+            agent_stmts ags
+        JOIN
+            stmt_readings sr
+        ON
+            ags.stmt_id = sr.stmt_id
+        JOIN
+            reading_content rc
+        ON
+            sr.reading_id = rc.reading_id
+        JOIN
+            content_text_refs ct
+        ON
+            rc.text_content_id = ct.text_content_id
+    )
     """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
