@@ -1,7 +1,11 @@
+import boto3
 from contextlib import closing
 import os
 import sqlite3
+import subprocess
 
+
+import indra_db_lite.locations as locations
 from .tables.agent_texts import ensure_agent_texts_table
 from .tables.best_content import ensure_best_content_table
 from .tables.entities import ensure_entrez_pmids_table
@@ -114,3 +118,20 @@ def construct_local_database(
     add_index_to_best_content_table(outpath)
     add_indices_to_entrez_pmids_table(outpath)
     add_index_to_pmid_text_refs_table(outpath)
+
+
+def compress_local_db(sqlite_db_path: str, n_threads=1) -> None:
+    assert isinstance(n_threads, int)
+    thread_flag = "" if n_threads == 1 else f"-T{n_threads}"
+    subprocess.run(
+        ["xz", "-v", "-1", thread_flag, sqlite_db_path]
+    )
+
+
+def local_db_to_s3(
+        compressed_sqlite_db_path: str,
+        bucket: str = locations.S3_BUCKET,
+        key: str = locations.S3_KEY
+):
+    client = boto3.client('s3')
+    client.upload_file(compressed_sqlite_db_path, bucket, key)
