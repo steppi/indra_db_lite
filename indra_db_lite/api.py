@@ -61,17 +61,29 @@ class TextContent:
         return len(self.fulltexts) + len(self.abstracts) + len(self.titles)
 
     def to_plaintexts(self, contains: Optional[str] = None):
-        self.fulltexts = {
-            text_ref_id: _filter_paragraphs(paragraphs)
+        fulltexts = {
+            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
             for text_ref_id, paragraphs in self.fulltexts.items()
         }
-        self.abstracts = {
-            text_ref_id: _filter_paragraphs(paragraphs)
+        self.fulltexts = {
+            text_ref_id: text for text_ref_id, text in fulltexts.items()
+            if len(text) > 1
+        }
+        abstracts = {
+            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
             for text_ref_id, paragraphs in self.abstracts.items()
         }
-        self.titles = {
-            text_ref_id: _filter_paragraphs(paragraphs)
+        self.abstracts = {
+            text_ref_id: text for text_ref_id, text in abstracts.items()
+            if len(text) > 1
+        }
+        titles = {
+            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
             for text_ref_id, paragraphs in self.titles.items()
+        }
+        self.titles = {
+            text_ref_id: text for text_ref_id, text in titles.items()
+            if len(text) > 1
         }
 
     def __str__(self):
