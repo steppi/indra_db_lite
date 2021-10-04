@@ -40,11 +40,12 @@ def _filter_paragraphs(
 
 
 class TextContent:
-    __slots__ = ['fulltexts', 'abstracts', 'titles']
+    __slots__ = ['fulltexts', 'abstracts', 'titles', 'processed']
 
     def __init__(
             self, content_rows: Iterator[Tuple[int, str, List[str]]]
     ) -> None:
+        self.processed: bool = False
         self.fulltexts: Dict[int, Union[List[str], str]] = {}
         self.abstracts: Dict[int, Union[List[str], str]] = {}
         self.titles: Dict[int, Union[List[str], str]] = {}
@@ -57,10 +58,23 @@ class TextContent:
             if text_type == 'title':
                 self.titles[text_ref_id] = content
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.fulltexts) + len(self.abstracts) + len(self.titles)
 
-    def to_plaintexts(self, contains: Optional[str] = None):
+    def flatten(self) -> Dict[int, Union[List[str], str]]:
+        """Flatten text content irrespective of text_type
+
+        Returns a single dictionary mapping text_ref_ids to content
+        """
+        result = {}
+        result.update(self.fulltexts)
+        result.update(self.abstracts)
+        result.update(self.titles)
+        return result
+
+    def to_plaintexts(self, contains: Optional[str] = None) -> None:
+        if self.processed:
+            return
         fulltexts = {
             text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
             for text_ref_id, paragraphs in self.fulltexts.items()
@@ -85,6 +99,7 @@ class TextContent:
             text_ref_id: text for text_ref_id, text in titles.items()
             if len(text) > 1
         }
+        self.processed = True
 
     def __str__(self):
         return (
@@ -99,7 +114,7 @@ class TextContent:
 
 def get_paragraphs_for_text_ref_ids(
         text_ref_ids: Collection[int]
-) -> Dict[int, List[str]]:
+) -> TextContent:
     text_ref_ids = tuple(text_ref_ids)
     query = f"""SELECT
                 text_ref_id, text_type, content
@@ -116,6 +131,15 @@ def get_paragraphs_for_text_ref_ids(
                 ).fetchall()
             )
     return TextContent(rows)
+
+
+def get_plaintexts_for_text_ref_ids(
+        text_ref_ids: Collection[int],
+        contains: Optional[Union[List[str], str]] = None,
+) -> TextContent:
+    content = get_paragraphs_for_text_ref_ids(text_ref_ids)
+    content.to_plaintexts(contains=contains)
+    return content
 
 
 def get_text_ref_ids_for_pmids(
