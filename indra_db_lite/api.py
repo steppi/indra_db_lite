@@ -33,7 +33,7 @@ def _filter_paragraphs(
     else:
         if isinstance(contains, str):
             contains = [contains]
-        pattern = '|'.join(r'[^\w]%s[^\w]' % re.escape(shortform)
+        pattern = '|'.join(r'(^|[^\w])%s([^\w]|$)' % re.escape(shortform)
                            for shortform in contains)
     paragraphs = [p for p in paragraphs if re.search(pattern, p)]
     return '\n'.join(paragraphs) + '\n'
