@@ -7,6 +7,17 @@ from typing import Collection, Dict, List, Iterator, Optional, Tuple, Union
 from indra_db_lite.locations import INDRA_DB_LITE_LOCATION
 
 
+__all__ = [
+    "get_entrez_pmids",
+    "get_entrez_pmids_for_hgnc",
+    "get_entrez_pmids_for_uniprot",
+    "get_paragraphs_for_text_ref_ids",
+    "get_plaintexts_for_text_ref_ids",
+    "get_pmids_for_text_ref_ids",
+    "get_taxon_id_for_uniprot",
+]
+
+
 def _filter_paragraphs(
         paragraphs: List[int],
         contains: Optional[Union[List[str], str]] = None
@@ -241,3 +252,18 @@ def get_entrez_pmids(entrez_id: int) -> List[int]:
         with closing(conn.cursor()) as cur:
             res = cur.execute(query, (entrez_id, )).fetchall()
     return [row[0] for row in res]
+
+
+def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
+    query = """--
+    SELECT
+        taxon_id
+    FROM
+        entrez_pmids
+    WHERE
+        uniprot_id = ?;
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            res = cur.execute(query, (uniprot_id, )).fetchall()
+    return res[0][0]
