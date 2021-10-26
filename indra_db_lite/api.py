@@ -266,4 +266,4 @@ def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
             res = cur.execute(query, (uniprot_id, )).fetchall()
-    return res[0][0]
+    return res[0][0] if res else None
