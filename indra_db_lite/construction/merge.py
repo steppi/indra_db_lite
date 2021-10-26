@@ -8,7 +8,7 @@ import subprocess
 import indra_db_lite.locations as locations
 from .tables.agent_texts import ensure_agent_texts_table
 from .tables.best_content import ensure_best_content_table
-from .tables.entities import ensure_entrez_pmids_table
+from .tables.entrez import ensure_entrez_pmids_table
 from .tables.pmid_text_refs import ensure_pmid_text_ref_table
 from .util import get_sqlite_tables
 
