@@ -267,3 +267,10 @@ def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
         with closing(conn.cursor()) as cur:
             res = cur.execute(query, (uniprot_id, )).fetchall()
     return res[0][0] if res else None
+
+
+def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, bool]:
+    if mesh_id[0] not in ['C', 'D']:
+        return None
+    is_concept = mesh_id[0] == 'C'
+    return (int(mesh_id[1:]), is_concept)
