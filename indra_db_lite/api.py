@@ -11,16 +11,18 @@ __all__ = [
     "get_entrez_pmids",
     "get_entrez_pmids_for_hgnc",
     "get_entrez_pmids_for_uniprot",
+    "get_mesh_terms_for_grounding",
     "get_paragraphs_for_text_ref_ids",
     "get_plaintexts_for_text_ref_ids",
+    "get_pmids_for_mesh_term",
     "get_pmids_for_text_ref_ids",
     "get_taxon_id_for_uniprot",
 ]
 
 
-def _filter_paragraphs(
+def filter_paragraphs(
         paragraphs: List[int],
-        contains: Optional[Union[List[str], str]] = None
+        contains: Optional[Union[Collection[str], str]] = None
 ):
     """Filter paragraphs to only those containing one of a list of strings
 
@@ -52,7 +54,24 @@ def _filter_paragraphs(
 
 class TextContent:
     __slots__ = ['fulltexts', 'abstracts', 'titles', 'processed']
+    """Stores text content results returned from local db
 
+    Attributes
+    ----------
+    processed : bool
+        If False, then each piece of text content is stored as a list of
+        paragraphs. Processing entails converting each list of paragraphs into
+        a concatentation of the paragraphs joined by newlines with the option
+        of filtering only to paragraphs containing a token or n-gram within
+        a given list of tokens or n-grams. The processing step also allows
+        filtering to content from only certain text types.
+    fulltexts : dict
+        Dictionary mapping text_ref_ids to fulltext content.
+    abstracts : dict
+        Dictionary mapping text_ref_ids to content from abstracts.
+    titles: dict
+        Dictionary mapping text_ref_ids to content from titles.
+    """
     def __init__(
             self, content_rows: Iterator[Tuple[int, str, List[str]]]
     ) -> None:
@@ -72,44 +91,80 @@ class TextContent:
     def __len__(self) -> int:
         return len(self.fulltexts) + len(self.abstracts) + len(self.titles)
 
-    def flatten(self) -> Dict[int, Union[List[str], str]]:
-        """Flatten text content irrespective of text_type
+    def __iter__(self) -> Iterator[str]:
+        for content in self.fulltexts.values():
+            yield content
+        for content in self.abstracts.values():
+            yield content
+        for content in self.titles.values():
+            yield content
 
-        Returns a single dictionary mapping text_ref_ids to content
+    def process(
+            self,
+            contains: Optional[Union[Collection[str], str]] = None,
+            text_types: Optional[Collection[str]] = None,
+    ) -> None:
+        """Processes content and updates object in place
+
+        Before processing, each piece of content is stored as a list of
+        paragraphs. Processing concatenates the paragraphs, separating by
+        newline. There is an option to filter to paragraphs containing only
+        certain unigrams or n-grams. There is also an option to filter to
+        content only of specific text types.
+
+        A TextContent object can only be processed once. This is an
+        irreversible operation.
+
+        contains : Optional[str of Collection of str]
+            If a single string, filter to only paragraphs containing this
+            token, (or n-gram in the case where the string contains multiple
+            tokens separated by space characters). If a list of strings is
+            passed, filter to only paragraphs that contain one or more of these
+            tokens or n-grams.
+
+        text_type : Optional[Collection of str]
+            A Collection containing one or more of the strings "fulltext",
+            "abstract", or "title". If None is passed, then all text_types will
+            be included. The dictionary attributes for text_types not included
+            will be set to empty in place.
         """
-        result = {}
-        result.update(self.fulltexts)
-        result.update(self.abstracts)
-        result.update(self.titles)
-        return result
-
-    def to_plaintexts(self, contains: Optional[str] = None) -> None:
         if self.processed:
             return
-        fulltexts = {
-            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
-            for text_ref_id, paragraphs in self.fulltexts.items()
-        }
-        self.fulltexts = {
-            text_ref_id: text for text_ref_id, text in fulltexts.items()
-            if len(text) > 1
-        }
-        abstracts = {
-            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
-            for text_ref_id, paragraphs in self.abstracts.items()
-        }
-        self.abstracts = {
-            text_ref_id: text for text_ref_id, text in abstracts.items()
-            if len(text) > 1
-        }
-        titles = {
-            text_ref_id: _filter_paragraphs(paragraphs, contains=contains)
-            for text_ref_id, paragraphs in self.titles.items()
-        }
-        self.titles = {
-            text_ref_id: text for text_ref_id, text in titles.items()
-            if len(text) > 1
-        }
+        if text_types is None:
+            text_types = ['fulltexts', 'abstracts', 'titles']
+        if 'fulltexts' in text_types:
+            fulltexts = {
+                text_ref_id: filter_paragraphs(paragraphs, contains=contains)
+                for text_ref_id, paragraphs in self.fulltexts.items()
+            }
+            self.fulltexts = {
+                text_ref_id: text for text_ref_id, text in fulltexts.items()
+                if len(text) > 1
+            }
+        else:
+            self.fulltexts = {}
+        if 'abstracts' in text_types:
+            abstracts = {
+                text_ref_id: filter_paragraphs(paragraphs, contains=contains)
+                for text_ref_id, paragraphs in self.abstracts.items()
+            }
+            self.abstracts = {
+                text_ref_id: text for text_ref_id, text in abstracts.items()
+                if len(text) > 1
+            }
+        else:
+            self.abstracts = {}
+        if 'titles' in text_types:
+            titles = {
+                text_ref_id: filter_paragraphs(paragraphs, contains=contains)
+                for text_ref_id, paragraphs in self.titles.items()
+            }
+            self.titles = {
+                text_ref_id: text for text_ref_id, text in titles.items()
+                if len(text) > 1
+            }
+        else:
+            self.titles = {}
         self.processed = True
 
     def __str__(self):
@@ -126,6 +181,44 @@ class TextContent:
 def get_paragraphs_for_text_ref_ids(
         text_ref_ids: Collection[int]
 ) -> TextContent:
+    """Return TextContent object containing unprocessed content for input ids
+
+    Each piece of content is stored as a list of paragraphs. This function may
+    be useful for cases where the same data needs to be processed in multiple
+    different ways. Implementing such processing is then left to the user. It
+    is usually preferable to use the function `get_plaintexts_for_text_ref_ids`
+    which will perform processing and filtering before returning the
+    TextContent object.
+
+    The local database contains the best piece of content for each text_ref_id
+    within an indra_db instance from which the local db was constructed, at the
+    time of construction. The prioritization of content is
+
+        fulltext > abstract > title
+
+    Fulltexts are futher prioritized by source, so that
+
+        pmc_oa > manuscripts > cord19_pmc_xml > elsevier > cord19_pdf
+
+    Abstracts are prioritized by source according to
+
+        pubmed > cord19_abstract
+
+    It is not common, but sometimes the same piece of content is available from
+    multiple sources.
+
+    Parameters
+    ----------
+    text_ref_ids : Collection of int
+        A collection of text_ref_ids. These are ids into the text_ref table of
+        the indra_db instance that has been dumped into the local db.
+
+    Returns
+    -------
+    py:class:`indra_db_lite.api.TextContent`
+        A TextContent object containing the best pieces of content in the local
+        db corresponding to the given text_ref_ids.
+    """
     text_ref_ids = tuple(text_ref_ids)
     query = f"""SELECT
                 text_ref_id, text_type, content
@@ -148,6 +241,50 @@ def get_plaintexts_for_text_ref_ids(
         text_ref_ids: Collection[int],
         contains: Optional[Union[List[str], str]] = None,
 ) -> TextContent:
+    """Returns processed plaintexts associated to input text_ref_ids.
+
+    The local database contains the best piece of content for each text_ref_id
+    within an indra_db instance from which the local db was constructed, at the
+    time of construction. The prioritization of content is
+
+        fulltext > abstract > title
+
+    Fulltexts are futher prioritized by source, so that
+
+        pmc_oa > manuscripts > cord19_pmc_xml > elsevier > cord19_pdf
+
+    Abstracts are prioritized by source according to
+
+        pubmed > cord19_abstract
+
+    It is not common, but sometimes the same piece of content is available from
+    multiple sources.
+
+    Parameters
+    ----------
+    text_ref_ids : Collection of int
+        A collection of text_ref_ids. These are ids into the text_ref table of
+        the indra_db instance that has been dumped into the local db.
+
+    contains : Optional[str of Collection of str]
+        If a single string, filter to only paragraphs containing this
+        token, (or n-gram in the case where the string contains multiple
+        tokens separated by space characters). If a list of strings is
+        passed, filter to only paragraphs that contain one or more of these
+        tokens or n-grams.
+
+    text_type : Optional[Collection of str]
+        A Collection containing one or more of the strings "fulltext",
+        "abstract", or "title". If None is passed, then all text_types will
+        be included. Output TextContent object will only contain the included
+        text types.
+
+    Returns
+    -------
+    py:class:`indra_db_lite.api.TextContent`
+        A TextContent object containing the best pieces of content in the local
+        db corresponding to the given text_ref_ids.
+    """
     content = get_paragraphs_for_text_ref_ids(text_ref_ids)
     content.to_plaintexts(contains=contains)
     return content
@@ -156,6 +293,27 @@ def get_plaintexts_for_text_ref_ids(
 def get_text_ref_ids_for_pmids(
         pmids: Collection[int]
 ) -> Dict[int, int]:
+    """Return dictionary mapping input pmids to corresponding text_ref_ids
+
+    text_ref_id stands for the primary key into indra_db's text_ref table.
+    The local database indexes content by text_ref_id, but it is often
+    necessary to search for content by pmid. This function maps pmids to
+    text_ref_ids so that the associated content can be found in the local db.
+
+    Parameters
+    ----------
+    pmids : Collection of int
+
+    Returns
+    -------
+    dict[int, int]
+        dict mapping pmids to text_ref_ids. Not every pmid has an associated
+        entry in the local database. It's possible that a pmid is for an
+        article that was not read into indra_db or that the local db is out
+        of date and does not contain content for that article. Such pmids will
+        not appear as keys in the output dictionary. It is up to the user to
+        track them if needed.
+    """
     pmids = tuple(pmids)
     query = f"""--
     SELECT
@@ -176,6 +334,16 @@ def get_text_ref_ids_for_pmids(
 def get_pmids_for_text_ref_ids(
         text_ref_ids: Collection[int]
 ) -> Dict[int, int]:
+    """Returns dict mapping input text_ref_ids to the associated pmids.
+
+    Parameters
+    ----------
+    text_ref_id : Collection of int
+
+    Returns
+    -------
+    dict[int, int]
+    """
     text_ref_ids = tuple(text_ref_ids)
     query = f"""--
     SELECT
@@ -195,6 +363,21 @@ def get_pmids_for_text_ref_ids(
 
 
 def get_text_ref_ids_for_agent_text(agent_text: str) -> List[int]:
+    """Get text_ref_ids for articles with extraction for agent_text in indra_db
+
+    text_ref_ids for articles with at least one INDRA statement extracted with
+    raw agent text equal to the input.
+
+    Parameters
+    ----------
+    agent_text : str
+        Raw agent text for some biological entity
+
+    Returns
+    -------
+    list of int
+        List of text_ref_ids
+    """
     query = """--
     SELECT
         text_ref_id
@@ -209,7 +392,22 @@ def get_text_ref_ids_for_agent_text(agent_text: str) -> List[int]:
     return [row[0] for row in res]
 
 
-def get_entrez_pmids_for_hgnc(hgnc_id: str) -> List[int]:
+def get_entrez_pmids_for_hgnc(hgnc_id: Union[int, str]) -> List[int]:
+    """Get pmids for articles annotated as mentioning input gene in Entrez.
+
+    Parameters
+    ----------
+    hgnc_id : int or str
+        Hugo Gene Nomenclature ID for a human gene, e.g. 6091 for INSR.
+        Can be either an int or str.
+
+    Returns
+    -------
+    list of int
+        List of pmids for articles annotated as mentioning input gene in
+        Entrez.
+    """
+    hgnc_id = str(hgnc_id)
     query = """--
     SELECT
         pmid
@@ -225,6 +423,19 @@ def get_entrez_pmids_for_hgnc(hgnc_id: str) -> List[int]:
 
 
 def get_entrez_pmids_for_uniprot(uniprot_id: str) -> List[int]:
+    """Get pmids for articles annotated as mentioning input protein in Entrez.
+
+    Parameters
+    ----------
+    uniprot_id : str
+        Uniprot ID for a protein, e.g. P06213 for INSR, human insulin receptor
+
+    Returns
+    -------
+    list of int
+        List of pmids for articles annotated as mentioning input protein in
+        Entrez.
+    """
     query = """--
     SELECT
         pmid
@@ -240,6 +451,19 @@ def get_entrez_pmids_for_uniprot(uniprot_id: str) -> List[int]:
 
 
 def get_entrez_pmids(entrez_id: int) -> List[int]:
+    """Get pmids for articles annotated as mentioning Entrez gene.
+
+    Parameters
+    ----------
+    entrez_id : str
+        Entrez gene ID,  e.g. 3643 for INSR
+
+    Returns
+    -------
+    list of int
+        List of pmids for articles annotated as mentioning input protein in
+        Entrez.
+    """
     query = """--
     SELECT
         pmid
@@ -276,7 +500,7 @@ def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, bool]:
     return (int(mesh_id[1:]), is_concept)
 
 
-def get_pmids_for_mesh_term(mesh_id: str) -> List[int]:
+def get_pmids_for_mesh_term(mesh_id: str, major_topic=True) -> List[int]:
     mesh_num_is_concept = mesh_id_to_mesh_num(mesh_id)
     if mesh_num_is_concept is None:
         return []
@@ -287,9 +511,29 @@ def get_pmids_for_mesh_term(mesh_id: str) -> List[int]:
     FROM
         mesh_pmids
     WHERE
-        mesh_num = ? AND is_concept = ?
+        mesh_num = ? AND is_concept = ? AND major_topic = ?
     """
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
-            res = cur.execute(query, (mesh_num, is_concept)).fetchall()
+            res = cur.execute(
+                query, (mesh_num, is_concept, major_topic)
+            ).fetchall()
     return [row[0] for row in res]
+
+
+def get_mesh_terms_for_grounding(
+        namespace: str, identifier: str
+) -> List[Tuple[int, int]]:
+    curie = f"{namespace}:{identifier}"
+    query = """--
+    SELECT
+        mesh_num, is_concept
+    FROM
+        mesh_xrefs
+    WHERE
+        curie = ?
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            res = cur.execute(query, (curie, )).fetchall()
+    return [tuple(row) for row in res]
