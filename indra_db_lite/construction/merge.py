@@ -79,6 +79,32 @@ def add_index_to_pmid_text_refs_table(sqlite_db_path: str) -> None:
         conn.commit()
 
 
+def add_indices_to_mesh_pmids_table(sqlite_db_path) -> None:
+    query = """--
+    CREATE INDEX IF NOT EXISTS
+        mesh_pmids_mesh_num_is_concept_idx
+    ON
+        mesh_pmids(mesh_num, is_concept)
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(query)
+        conn.commit()
+
+
+def add_index_to_mesh_xrefs_table(sqlite_db_path) -> None:
+    query = """--
+    CREATE INDEX IF NOT EXISTS
+        mesh_xrefs_curie_idx
+    ON
+        mesh_xrefs(curie)
+    """
+    with closing(sqlite3.connect(sqlite_db_path)) as conn:
+        with closing(conn.cursor()) as cur:
+            cur.execute(query)
+        conn.commit()
+
+
 def move_table(from_db_path: str, to_db_path: str, table_name: str):
     assert table_name in get_sqlite_tables(from_db_path)
     assert table_name in get_sqlite_tables(to_db_path)
@@ -101,6 +127,7 @@ def construct_local_database(
         best_content_db_path: str,
         entities_db_path: str,
         pmid_text_refs_db_path: str,
+        mesh_db_path: str,
 ) -> None:
     agent_texts_db_path = os.path.realpath(agent_texts_db_path)
     best_content_db_path = os.path.realpath(best_content_db_path)
@@ -114,10 +141,14 @@ def construct_local_database(
     move_table(best_content_db_path, outpath, 'best_content')
     move_table(entities_db_path, outpath, 'entrez_pmids')
     move_table(pmid_text_refs_db_path, outpath, 'pmid_text_refs')
+    move_table(mesh_db_path, outpath, 'mesh_pmids')
+    move_table(mesh_db_path, outpath, 'mesh_xrefs')
     add_index_to_agent_texts_table(outpath)
     add_index_to_best_content_table(outpath)
     add_indices_to_entrez_pmids_table(outpath)
     add_index_to_pmid_text_refs_table(outpath)
+    add_indices_to_mesh_pmids_table(outpath)
+    add_index_to_mesh_xrefs_table(outpath)
 
 
 def compress_local_db(sqlite_db_path: str, n_threads=1) -> None:
