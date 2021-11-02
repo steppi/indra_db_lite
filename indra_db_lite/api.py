@@ -404,8 +404,7 @@ def get_entrez_pmids_for_hgnc(hgnc_id: Union[int, str]) -> List[int]:
     Returns
     -------
     list of int
-        List of pmids for articles annotated as mentioning input gene in
-        Entrez.
+        List of pmids for articles annotated for input human gene in Entrez.
     """
     hgnc_id = str(hgnc_id)
     query = """--
@@ -423,7 +422,7 @@ def get_entrez_pmids_for_hgnc(hgnc_id: Union[int, str]) -> List[int]:
 
 
 def get_entrez_pmids_for_uniprot(uniprot_id: str) -> List[int]:
-    """Get pmids for articles annotated as mentioning input protein in Entrez.
+    """Get pmids for articles annotated for input protein in Entrez.
 
     Parameters
     ----------
@@ -433,8 +432,7 @@ def get_entrez_pmids_for_uniprot(uniprot_id: str) -> List[int]:
     Returns
     -------
     list of int
-        List of pmids for articles annotated as mentioning input protein in
-        Entrez.
+        List of pmids for articles annotated for input protein in Entrez.
     """
     query = """--
     SELECT
@@ -451,7 +449,7 @@ def get_entrez_pmids_for_uniprot(uniprot_id: str) -> List[int]:
 
 
 def get_entrez_pmids(entrez_id: int) -> List[int]:
-    """Get pmids for articles annotated as mentioning Entrez gene.
+    """Get pmids for articles annotated for Entrez gene.
 
     Parameters
     ----------
@@ -461,7 +459,7 @@ def get_entrez_pmids(entrez_id: int) -> List[int]:
     Returns
     -------
     list of int
-        List of pmids for articles annotated as mentioning input protein in
+        List of pmids for articles annotated for input protein in
         Entrez.
     """
     query = """--
@@ -478,7 +476,18 @@ def get_entrez_pmids(entrez_id: int) -> List[int]:
     return [row[0] for row in res]
 
 
-def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
+def get_taxon_id_for_uniprot(uniprot_id: str) -> int:
+    """Get taxon id for species corresponding to a given uniprot id
+
+    Parameters
+    ----------
+    uniprot_id : str
+
+    Returns
+    -------
+    taxon_id : int
+        NCBI taxon id for species of protein corresponding to uniprot_id
+    """
     query = """--
     SELECT
         taxon_id
@@ -493,14 +502,47 @@ def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
     return res[0][0] if res else None
 
 
-def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, bool]:
+def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, int]:
+    """Map mesh_id to values used to specify mesh ids in the local database.
+
+    Parameters
+    ----------
+    mesh_id : str
+        e.g. D018599 for Witchcraft
+
+    Returns
+    -------
+    mesh_num : int
+        int produced by removing leading character and all leading zeros of
+        mesh_id.
+    is_concept : int
+        1 if mesh_term is a supplementary concept and 0 otherwise. bool is not
+        used to avoid conversion of True -> "True" when converting tables to
+        csv.
+    """
     if mesh_id[0] not in ['C', 'D']:
         return None
     is_concept = 1 if mesh_id[0] == 'C' else 0
     return (int(mesh_id[1:]), is_concept)
 
 
-def get_pmids_for_mesh_term(mesh_id: str, major_topic=True) -> List[int]:
+def get_pmids_for_mesh_term(
+        mesh_id: str, major_topic: Optional[bool] = True,
+) -> List[int]:
+    """Get pmids for articles annotated for mesh heading.
+
+    Parameters
+    ----------
+    mesh_id : str
+    major_topic : Optional[bool]
+        If True, return only pmids where mesh heading is a major topic for the
+        corresponding article.
+
+    Returns
+    -------
+    list of int
+        List of pmids
+    """
     mesh_num_is_concept = mesh_id_to_mesh_num(mesh_id)
     if mesh_num_is_concept is None:
         return []
@@ -524,6 +566,24 @@ def get_pmids_for_mesh_term(mesh_id: str, major_topic=True) -> List[int]:
 def get_mesh_terms_for_grounding(
         namespace: str, identifier: str
 ) -> List[Tuple[int, int]]:
+    """Get mesh mappings for a given grounding.
+
+    Parameters
+    ----------
+    namespace : str
+        Namespace for an ontology or grounding resource as specified in INDRA.
+        INDRA's nomenclature differs from identifiers.org in some places. See
+        INDRA documentation for more info.
+    identifer : str
+        Identifier within input namespace.
+
+    Returns
+    -------
+    list of tuple
+        List of tuples containing (mesh_num, is_concept) pairs for mapping mesh
+        terms into the local db. A function is provided to map these back into
+        mesh ids if desired.
+    """
     curie = f"{namespace}:{identifier}"
     query = """--
     SELECT
