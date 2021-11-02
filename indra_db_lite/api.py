@@ -272,5 +272,24 @@ def get_taxon_id_for_uniprot(uniprot_id: int) -> int:
 def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, bool]:
     if mesh_id[0] not in ['C', 'D']:
         return None
-    is_concept = mesh_id[0] == 'C'
+    is_concept = 1 if mesh_id[0] == 'C' else 0
     return (int(mesh_id[1:]), is_concept)
+
+
+def get_pmids_for_mesh_term(mesh_id: str) -> List[int]:
+    mesh_num_is_concept = mesh_id_to_mesh_num(mesh_id)
+    if mesh_num_is_concept is None:
+        return []
+    mesh_num, is_concept = mesh_num_is_concept
+    query = """--
+    SELECT
+        pmid_num
+    FROM
+        mesh_pmids
+    WHERE
+        mesh_num = ? AND is_concept = ?
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            res = cur.execute(query, (mesh_num, is_concept)).fetchall()
+    return [row[0] for row in res]
