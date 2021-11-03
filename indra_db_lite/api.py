@@ -526,6 +526,37 @@ def mesh_id_to_mesh_num(mesh_id: str) -> Tuple[int, int]:
     return (int(mesh_id[1:]), is_concept)
 
 
+def mesh_num_to_mesh_id(mesh_num: int, is_concept: int) -> str:
+    """Map mesh_num, is_concept pair back to mesh id.
+
+    Parameters
+    ----------
+    mesh_num : int
+        int produced by removing leading character and all leading zeros of
+        mesh_id.
+    is_concept : int
+        1 if mesh_term is a supplementary concept and 0 otherwise. bool is not
+        used to avoid conversion of True -> "True" when converting tables to
+        csv.
+
+    Returns
+    -------
+    mesh_id : str
+    """
+    prefix = 'C' if is_concept else 'D'
+    if prefix == 'D':
+        if mesh_num < 66332:
+            mesh_num = str(mesh_num).zfill(6)
+        else:
+            mesh_num = str(mesh_num).zfill(9)
+    elif prefix == 'C':
+        if mesh_num < 588418:
+            mesh_num = str(mesh_num).zfill(6)
+        else:
+            mesh_num = str(mesh_num).zfill(9)
+    return prefix + mesh_num
+
+
 def get_pmids_for_mesh_term(
         mesh_id: str, major_topic: Optional[bool] = True,
 ) -> List[int]:
