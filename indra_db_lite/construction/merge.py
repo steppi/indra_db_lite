@@ -1,9 +1,6 @@
-import boto3
 from contextlib import closing
 import os
 import sqlite3
-import subprocess
-
 
 import indra_db_lite.locations as locations
 from .tables.agent_texts import ensure_agent_texts_table
@@ -13,7 +10,7 @@ from .tables.pmid_text_refs import ensure_pmid_text_ref_table
 from .util import get_sqlite_tables
 
 
-def add_index_to_best_content_table(sqlite_db_path: str) -> None:
+def add_indices_to_best_content_table(sqlite_db_path: str) -> None:
     """Make queries to best content table more efficient."""
     query = """--
     CREATE INDEX IF NOT EXISTS
@@ -53,7 +50,7 @@ def add_indices_to_entrez_pmids_table(sqlite_db_path: str) -> None:
                 cur.execute(query)
 
 
-def add_index_to_agent_texts_table(sqlite_db_path: str) -> None:
+def add_indices_to_agent_texts_table(sqlite_db_path: str) -> None:
     query = """--
     CREATE INDEX IF NOT EXISTS
         agent_texts_agent_text_idx
@@ -66,7 +63,7 @@ def add_index_to_agent_texts_table(sqlite_db_path: str) -> None:
         conn.commit()
 
 
-def add_index_to_pmid_text_refs_table(sqlite_db_path: str) -> None:
+def add_indices_to_pmid_text_refs_table(sqlite_db_path: str) -> None:
     query = """--
     CREATE INDEX IF NOT EXISTS
         pmid_text_refs_pmid_idx
@@ -92,7 +89,7 @@ def add_indices_to_mesh_pmids_table(sqlite_db_path) -> None:
         conn.commit()
 
 
-def add_index_to_mesh_xrefs_table(sqlite_db_path) -> None:
+def add_indices_to_mesh_xrefs_table(sqlite_db_path) -> None:
     query = """--
     CREATE INDEX IF NOT EXISTS
         mesh_xrefs_curie_idx
@@ -143,26 +140,9 @@ def construct_local_database(
     move_table(pmid_text_refs_db_path, outpath, 'pmid_text_refs')
     move_table(mesh_db_path, outpath, 'mesh_pmids')
     move_table(mesh_db_path, outpath, 'mesh_xrefs')
-    add_index_to_agent_texts_table(outpath)
-    add_index_to_best_content_table(outpath)
+    add_indices_to_agent_texts_table(outpath)
+    add_indices_to_best_content_table(outpath)
     add_indices_to_entrez_pmids_table(outpath)
-    add_index_to_pmid_text_refs_table(outpath)
+    add_indices_to_pmid_text_refs_table(outpath)
     add_indices_to_mesh_pmids_table(outpath)
-    add_index_to_mesh_xrefs_table(outpath)
-
-
-def compress_local_db(sqlite_db_path: str, n_threads=1) -> None:
-    assert isinstance(n_threads, int)
-    thread_flag = "" if n_threads == 1 else f"-T{n_threads}"
-    subprocess.run(
-        ["xz", "-v", "-1", thread_flag, sqlite_db_path]
-    )
-
-
-def local_db_to_s3(
-        compressed_sqlite_db_path: str,
-        bucket: str = locations.S3_BUCKET,
-        key: str = locations.S3_KEY
-):
-    client = boto3.client('s3')
-    client.upload_file(compressed_sqlite_db_path, bucket, key)
+    add_indices_to_mesh_xrefs_table(outpath)
