@@ -18,7 +18,6 @@ environment variable `INDRA_DB_LITE_S3_KEY` to the actual key.
 Once these environment variables are set correctly, run
 
     $ python -m indra_db_lite.download
-	
 
 to download the sqlite db file to your machine and decompress it. Note that it may
 take over an hour to download and decompress the db file. Once completed,
