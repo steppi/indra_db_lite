@@ -17,6 +17,8 @@ __all__ = [
     "get_pmids_for_mesh_term",
     "get_pmids_for_text_ref_ids",
     "get_taxon_id_for_uniprot",
+    "get_text_ref_ids_for_agent_text",
+    "get_text_ref_ids_for_pmids",
     "mesh_id_to_mesh_num",
     "mesh_num_to_mesh_id",
 ]
