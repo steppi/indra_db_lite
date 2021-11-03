@@ -1,8 +1,20 @@
+"""Assembles tables from multiple sources into a single sqlite database
+
+The process is to construct multiple sqlite database files with various tables,
+and then to copy the tables into a single database. This module provides a
+function to copy a table from one sqlite database to another. Indices are not
+copied, so all functions to add indices to tables are placed in this module and
+indices are added to the final combined table.
+
+A function is also provided that automates the process of moving all tables
+into the final db and adding indices.
+"""
+
+
 from contextlib import closing
 import os
 import sqlite3
 
-import indra_db_lite.locations as locations
 from .tables.agent_texts import ensure_agent_texts_table
 from .tables.best_content import ensure_best_content_table
 from .tables.entrez import ensure_entrez_pmids_table

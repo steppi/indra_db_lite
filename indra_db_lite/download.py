@@ -1,3 +1,5 @@
+"""Handles download (and upload) of local db from (and to) s3."""
+
 import boto3
 import logging
 import os

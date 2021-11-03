@@ -1,3 +1,9 @@
+"""API for common queries into the local database
+
+These functions mostly serve the purpose of training adeft models or running
+grounding anomaly detection with opaque.
+"""
+
 import re
 from contextlib import closing
 import json
