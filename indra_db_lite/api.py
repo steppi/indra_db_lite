@@ -141,7 +141,7 @@ class TextContent:
         if self.processed:
             return
         if text_types is None:
-            text_types = ['fulltexts', 'abstracts', 'titles']
+            text_types = ['fulltext', 'abstract', 'title']
         if 'fulltexts' in text_types:
             fulltexts = {
                 text_ref_id: filter_paragraphs(paragraphs, contains=contains)
@@ -250,6 +250,7 @@ def get_paragraphs_for_text_ref_ids(
 def get_plaintexts_for_text_ref_ids(
         text_ref_ids: Collection[int],
         contains: Optional[Union[List[str], str]] = None,
+        text_types: Optional[Collection[str]] = None,
 ) -> TextContent:
     """Returns processed plaintexts associated to input text_ref_ids.
 
@@ -283,7 +284,7 @@ def get_plaintexts_for_text_ref_ids(
         passed, filter to only paragraphs that contain one or more of these
         tokens or n-grams.
 
-    text_type : Optional[Collection of str]
+    text_types : Optional[Collection of str]
         A Collection containing one or more of the strings "fulltext",
         "abstract", or "title". If None is passed, then all text_types will
         be included. Output TextContent object will only contain the included
@@ -296,7 +297,7 @@ def get_plaintexts_for_text_ref_ids(
         db corresponding to the given text_ref_ids.
     """
     content = get_paragraphs_for_text_ref_ids(text_ref_ids)
-    content.to_plaintexts(contains=contains)
+    content.process(contains=contains, text_types=text_types)
     return content
 
 
