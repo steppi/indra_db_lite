@@ -142,7 +142,7 @@ class TextContent:
             return
         if text_types is None:
             text_types = ['fulltext', 'abstract', 'title']
-        if 'fulltexts' in text_types:
+        if 'fulltext' in text_types:
             fulltexts = {
                 text_ref_id: filter_paragraphs(paragraphs, contains=contains)
                 for text_ref_id, paragraphs in self.fulltexts.items()
@@ -153,7 +153,7 @@ class TextContent:
             }
         else:
             self.fulltexts = {}
-        if 'abstracts' in text_types:
+        if 'abstract' in text_types:
             abstracts = {
                 text_ref_id: filter_paragraphs(paragraphs, contains=contains)
                 for text_ref_id, paragraphs in self.abstracts.items()
@@ -164,7 +164,7 @@ class TextContent:
             }
         else:
             self.abstracts = {}
-        if 'titles' in text_types:
+        if 'title' in text_types:
             titles = {
                 text_ref_id: filter_paragraphs(paragraphs, contains=contains)
                 for text_ref_id, paragraphs in self.titles.items()
