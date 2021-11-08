@@ -652,7 +652,7 @@ def get_mesh_terms_for_grounding(
 
 def get_text_sample(
         num_samples: int, text_types: Optional[Collection[str]] = None
-):
+) -> TextContent:
     """Generate a random sample of texts of specified text types.
 
     Parameters
@@ -666,6 +666,11 @@ def get_text_sample(
         be included. Sample is generated only from entries in the indra lite
         database for which the best piece of content is one of the specified
         text types.
+
+    Returns
+    -------
+    py:class:`indra_db_lite.api.TextContent`
+        A TextContent object of unprocessed text content (lists of paragraphs).
     """
     if text_types is None:
         text_types = ('fulltext', 'abstract', 'title')
