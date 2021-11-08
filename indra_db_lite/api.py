@@ -25,6 +25,7 @@ __all__ = [
     "get_taxon_id_for_uniprot",
     "get_text_ref_ids_for_agent_text",
     "get_text_ref_ids_for_pmids",
+    "get_text_sample",
     "mesh_id_to_mesh_num",
     "mesh_num_to_mesh_id",
 ]
@@ -108,6 +109,14 @@ class TextContent:
             yield content
         for content in self.titles.values():
             yield content
+
+    def trid_content_pairs(self) -> Iterator[Tuple[int, str]]:
+        for trid, content in self.fulltexts.items():
+            yield trid, content
+        for trid, content in self.abstracts.items():
+            yield trid, content
+        for trid, content in self.titles.items():
+            yield trid, content
 
     def process(
             self,
@@ -638,4 +647,49 @@ def get_mesh_terms_for_grounding(
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
             res = cur.execute(query, (curie, )).fetchall()
-    return [tuple(row) for row in res]
+    return [mesh_num_to_mesh_id(*row) for row in res]
+
+
+def get_text_sample(
+        num_samples: int, text_types: Optional[Collection[str]] = None
+):
+    """Generate a random sample of texts of specified text types.
+
+    Parameters
+    ----------
+    num_samples : int
+        Number of elements in sample
+
+    text_types : Optional[collection of str]
+        A Collection containing one or more of the strings "fulltext",
+        "abstract", or "title". If None is passed, then all text_types will
+        be included. Sample is generated only from entries in the indra lite
+        database for which the best piece of content is one of the specified
+        text types.
+    """
+    if text_types is None:
+        text_types = ('fulltext', 'abstract', 'title')
+    else:
+        text_types = tuple(text_types)
+
+    query = f"""--
+    SELECT
+        text_ref_id, text_type, content
+    FROM
+        best_content
+    WHERE
+        id in (SELECT
+                   id FROM best_content
+               WHERE
+                   text_type IN ({','.join(['?']*len(text_types))})
+               ORDER BY RANDOM()
+               LIMIT ?)
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            rows = (
+                tuple(row) for row in cur.execute(
+                    query, text_types + (num_samples, )
+                ).fetchall()
+            )
+    return TextContent(rows)
