@@ -33,13 +33,13 @@ def decompress_local_db(
     os.rename(compressed_db_path[:-3], outpath)
 
 
-def local_db_to_s3(
-        compressed_sqlite_db_path: str,
+def upload_to_s3(
+        path: str,
         bucket: str = locations.S3_BUCKET,
         key: str = locations.S3_KEY,
 ) -> None:
     client = boto3.client('s3')
-    client.upload_file(compressed_sqlite_db_path, bucket, key)
+    client.upload_file(path, bucket, key)
 
 
 def download_local_db_from_s3(
