@@ -12,25 +12,25 @@ from indra_db_lite import locations
 logger = logging.getLogger(__file__)
 
 
-def compress_local_db(sqlite_db_path: str, n_threads=1) -> None:
+def xz_compress(path: str, n_threads=1) -> None:
     assert isinstance(n_threads, int)
     thread_flag = "" if n_threads == 1 else f"-T{n_threads}"
     subprocess.run(
-        ["xz", "-v", "-1", thread_flag, sqlite_db_path]
+        ["xz", "-v", "-1", thread_flag, path]
     )
 
 
-def decompress_local_db(
-        compressed_db_path: str, outpath: str
+def xz_decompress(
+        compressed_path: str, outpath: str
 ) -> None:
     subprocess.run(
-        ["xz", "-v", "--decompress", "-1", compressed_db_path]
+        ["xz", "-v", "--decompress", "-1", compressed_path]
     )
     #  xz will not decompress if the file extension is not .xz. It's output
     # will have the same name as the input with the extension chopped off.
     # We can therefore assume that chopping off the last three characters
     # will give the correct path to the output of xz.
-    os.rename(compressed_db_path[:-3], outpath)
+    os.rename(compressed_path[:-3], outpath)
 
 
 def upload_to_s3(
@@ -52,7 +52,7 @@ def download_local_db_from_s3(
     with open(outpath + '.xz', 'wb') as f:
         client.download_fileobj(bucket, key, f)
     logger.info("Decompressing local db.")
-    decompress_local_db(outpath + '.xz', outpath)
+    xz_decompress(outpath + '.xz', outpath)
 
 
 if __name__ == '__main__':
