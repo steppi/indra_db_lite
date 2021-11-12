@@ -24,15 +24,22 @@ from .util import get_sqlite_tables
 
 def add_indices_to_best_content_table(sqlite_db_path: str) -> None:
     """Make queries to best content table more efficient."""
-    query = """--
+    query1 = """--
     CREATE INDEX IF NOT EXISTS
         best_content_text_ref_id_idx
     ON
         best_content(text_ref_id)
     """
+    query2 = """--
+    CREATE INDEX IF NOT EXISTS
+        best_content_text_type_id_idx
+    ON
+        best_content(text_type)
+    """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
-            cur.execute(query)
+            for query in query1, query2:
+                cur.execute(query)
         conn.commit()
 
 
@@ -102,15 +109,22 @@ def add_indices_to_mesh_pmids_table(sqlite_db_path) -> None:
 
 
 def add_indices_to_mesh_xrefs_table(sqlite_db_path) -> None:
-    query = """--
+    query1 = """--
     CREATE INDEX IF NOT EXISTS
         mesh_xrefs_curie_idx
     ON
         mesh_xrefs(curie)
     """
+    query2 = """--
+    CREATE INDEX IF NOT EXISTS
+        mesh_xrefs_mesh_num_is_concept_idx
+    ON
+        mesh_xrefs(mesh_num, is_concept)
+    """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
-            cur.execute(query)
+            for query in query1, query2:
+                cur.execute(query)
         conn.commit()
 
 

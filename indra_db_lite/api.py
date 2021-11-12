@@ -25,6 +25,7 @@ __all__ = [
     "get_taxon_id_for_uniprot",
     "get_text_ref_ids_for_agent_text",
     "get_text_ref_ids_for_pmids",
+    "get_text_sample",
     "mesh_id_to_mesh_num",
     "mesh_num_to_mesh_id",
 ]
@@ -109,6 +110,14 @@ class TextContent:
         for content in self.titles.values():
             yield content
 
+    def trid_content_pairs(self) -> Iterator[Tuple[int, str]]:
+        for trid, content in self.fulltexts.items():
+            yield trid, content
+        for trid, content in self.abstracts.items():
+            yield trid, content
+        for trid, content in self.titles.items():
+            yield trid, content
+
     def process(
             self,
             contains: Optional[Union[Collection[str], str]] = None,
@@ -188,6 +197,23 @@ class TextContent:
         return str(self)
 
 
+def _get_paragraphs_for_text_ref_ids_helper(
+        text_ref_ids: Tuple[int]
+) -> Iterator[Tuple[int, str, str]]:
+    """Internal function to assist get_paragraphs_for_text_ref_ids."""
+    query = f"""SELECT
+                text_ref_id, text_type, content
+            FROM
+                best_content
+            WHERE
+                text_ref_id IN ({','.join(['?']*len(text_ref_ids))})
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            for row in cur.execute(query, text_ref_ids):
+                yield tuple(row)
+
+
 def get_paragraphs_for_text_ref_ids(
         text_ref_ids: Collection[int]
 ) -> TextContent:
@@ -229,21 +255,16 @@ def get_paragraphs_for_text_ref_ids(
         A TextContent object containing the best pieces of content in the local
         db corresponding to the given text_ref_ids.
     """
+    rows = []
     text_ref_ids = tuple(text_ref_ids)
-    query = f"""SELECT
-                text_ref_id, text_type, content
-            FROM
-                best_content
-            WHERE
-                text_ref_id IN ({','.join(['?']*len(text_ref_ids))})
-    """
-    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
-        with closing(conn.cursor()) as cur:
-            rows = (
-                tuple(row) for row in cur.execute(
-                    query, text_ref_ids
-                ).fetchall()
+    num_text_ref_ids = len(text_ref_ids)
+    batch_size = 100000
+    for idx in range(0, num_text_ref_ids, batch_size):
+        rows.extend(
+            _get_paragraphs_for_text_ref_ids_helper(
+                text_ref_ids[idx:idx + batch_size]
             )
+        )
     return TextContent(rows)
 
 
@@ -301,6 +322,24 @@ def get_plaintexts_for_text_ref_ids(
     return content
 
 
+def _get_text_ref_ids_for_pmids_helper(
+        pmids: Tuple[int]
+) -> Iterator[Tuple[int, int]]:
+    """Internal function to help with get_text_ref_ids_for_pmids."""
+    query = f"""--
+    SELECT
+        pmid, text_ref_id
+    FROM
+        pmid_text_refs
+    WHERE
+        pmid IN ({','.join(['?']*len(pmids))})
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            for row in cur.execute(query, pmids):
+                yield tuple(row)
+
+
 def get_text_ref_ids_for_pmids(
         pmids: Collection[int]
 ) -> Dict[int, int]:
@@ -325,21 +364,36 @@ def get_text_ref_ids_for_pmids(
         not appear as keys in the output dictionary. It is up to the user to
         track them if needed.
     """
+    result = {}
     pmids = tuple(pmids)
+    num_pmids = len(pmids)
+    batch_size = 100000
+    for idx in range(0, num_pmids, batch_size):
+        result.update(
+            _get_text_ref_ids_for_pmids_helper(
+                pmids[idx:idx + batch_size]
+            )
+        )
+    return result
+
+
+def _get_pmids_for_text_ref_ids_helper(
+        text_ref_ids: Tuple[int]
+) -> Iterator[Tuple[int, int]]:
+    """Internal function to assist with get_pmids_for_text_ref_ids."""
     query = f"""--
     SELECT
-        pmid, text_ref_id
+        text_ref_id, pmid
     FROM
         pmid_text_refs
     WHERE
-        pmid IN ({','.join(['?']*len(pmids))})
+        text_ref_id IN ({','.join(['?']*len(text_ref_ids))}) AND
+        pmid IS NOT NULL
     """
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
-            pmid_text_refs = cur.execute(query, pmids).fetchall()
-    return {
-        pmid: text_ref_id for pmid, text_ref_id in pmid_text_refs
-    }
+            for row in cur.execute(query, text_ref_ids):
+                yield tuple(row)
 
 
 def get_pmids_for_text_ref_ids(
@@ -355,22 +409,17 @@ def get_pmids_for_text_ref_ids(
     -------
     dict[int, int]
     """
+    result = {}
     text_ref_ids = tuple(text_ref_ids)
-    query = f"""--
-    SELECT
-        text_ref_id, pmid
-    FROM
-        pmid_text_refs
-    WHERE
-        text_ref_id IN ({','.join(['?']*len(text_ref_ids))}) AND
-        pmid IS NOT NULL
-    """
-    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
-        with closing(conn.cursor()) as cur:
-            text_ref_pmids = cur.execute(query, text_ref_ids).fetchall()
-    return {
-        text_ref_id: pmid for text_ref_id, pmid in text_ref_pmids
-    }
+    num_text_ref_ids = len(text_ref_ids)
+    batch_size = 100000
+    for idx in range(0, num_text_ref_ids, batch_size):
+        result.update(
+            _get_pmids_for_text_ref_ids_helper(
+                text_ref_ids[idx:idx + batch_size]
+            )
+        )
+    return result
 
 
 def get_text_ref_ids_for_agent_text(agent_text: str) -> List[int]:
@@ -638,4 +687,54 @@ def get_mesh_terms_for_grounding(
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
             res = cur.execute(query, (curie, )).fetchall()
-    return [tuple(row) for row in res]
+    return [mesh_num_to_mesh_id(*row) for row in res]
+
+
+def get_text_sample(
+        num_samples: int, text_types: Optional[Collection[str]] = None
+) -> TextContent:
+    """Generate a random sample of texts of specified text types.
+
+    Parameters
+    ----------
+    num_samples : int
+        Number of elements in sample
+
+    text_types : Optional[collection of str]
+        A Collection containing one or more of the strings "fulltext",
+        "abstract", or "title". If None is passed, then all text_types will
+        be included. Sample is generated only from entries in the indra lite
+        database for which the best piece of content is one of the specified
+        text types.
+
+    Returns
+    -------
+    py:class:`indra_db_lite.api.TextContent`
+        A TextContent object of unprocessed text content (lists of paragraphs).
+    """
+    if text_types is None:
+        text_types = ('fulltext', 'abstract', 'title')
+    else:
+        text_types = tuple(text_types)
+
+    query = f"""--
+    SELECT
+        text_ref_id, text_type, content
+    FROM
+        best_content
+    WHERE
+        id in (SELECT
+                   id FROM best_content
+               WHERE
+                   text_type IN ({','.join(['?']*len(text_types))})
+               ORDER BY RANDOM()
+               LIMIT ?)
+    """
+    with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
+        with closing(conn.cursor()) as cur:
+            rows = (
+                tuple(row) for row in cur.execute(
+                    query, text_types + (num_samples, )
+                ).fetchall()
+            )
+    return TextContent(rows)
