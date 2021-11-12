@@ -109,15 +109,22 @@ def add_indices_to_mesh_pmids_table(sqlite_db_path) -> None:
 
 
 def add_indices_to_mesh_xrefs_table(sqlite_db_path) -> None:
-    query = """--
+    query1 = """--
     CREATE INDEX IF NOT EXISTS
         mesh_xrefs_curie_idx
     ON
         mesh_xrefs(curie)
     """
+    query2 = """--
+    CREATE INDEX IF NOT EXISTS
+        mesh_xrefs_mesh_num_is_concept_idx
+    ON
+        mesh_xrefs(mesh_num, is_concept)
+    """
     with closing(sqlite3.connect(sqlite_db_path)) as conn:
         with closing(conn.cursor()) as cur:
-            cur.execute(query)
+            for query in query1, query2:
+                cur.execute(query)
         conn.commit()
 
 
