@@ -1,11 +1,11 @@
 import argparse
-import os
 import random
 import sqlite3
 import zlib
 
 from contextlib import closing
 from gensim.corpora import Dictionary
+from typing import Optional
 
 from opaque.nlp.featurize import BaselineTfidfVectorizer
 
@@ -30,7 +30,9 @@ class TextFuzzer:
         return ' '.join(tokens)
 
 
-def make_fuzzed_best_content_table(from_db_path: str, to_db_path: str):
+def make_compressed_best_content_table(
+        from_db_path: str, to_db_path: str, fuzz: Optional[bool] = False
+):
     fuzzer = TextFuzzer(seed=1729)
     ensure_best_content_table(to_db_path)
     select_query = """--
@@ -51,9 +53,11 @@ def make_fuzzed_best_content_table(from_db_path: str, to_db_path: str):
             cur2.execute('PRAGMA journal_mode = WAL')
             cur2.execute('PRAGMA synchronous = NORMAL')
             for row in rows:
-                fuzzed_content = fuzzer(row[-1])
-                fuzzed_content = zlib.compress(fuzzed_content.encode("utf-8"))
-                new_row = list(row[:-1]) + [fuzzed_content]
+                content = row[-1]
+                if fuzz:
+                    content = fuzzer(content)
+                content = zlib.compress(content.encode("utf-8"))
+                new_row = list(row[:-1]) + [content]
                 cur2.execute(insertion_query, new_row)
             cur2.execute('PRAGMA journal_mode = DELETE')
             conn2.commit()
@@ -63,5 +67,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("from_db_path")
     parser.add_argument("to_db_path")
+    parser.add_argument("--fuzz", action="store_true")
     args = parser.parse_args()
-    make_fuzzed_best_content_table(args.from_db_path, args.to_db_path)
+    make_compressed_best_content_table(
+        args.from_db_path, args.to_db_path, fuzz=args.fuzz
+    )
