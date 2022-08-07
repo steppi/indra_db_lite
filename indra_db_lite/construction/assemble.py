@@ -172,3 +172,18 @@ def construct_local_database(
     add_indices_to_pmid_text_refs_table(outpath)
     add_indices_to_mesh_pmids_table(outpath)
     add_indices_to_mesh_xrefs_table(outpath)
+
+
+def copy_db_with_transformed_content(
+        outpath: str,
+        local_db_path: str,
+        transformed_best_content_db_path: str,
+) -> None:
+    construct_local_database(
+        outpath,
+        agent_texts_db_path=local_db_path,
+        best_content_db_path=transformed_best_content_db_path,
+        entities_db_path=local_db_path,
+        pmid_text_refs_db_path=local_db_path,
+        mesh_db_path=local_db_path,
+    )
