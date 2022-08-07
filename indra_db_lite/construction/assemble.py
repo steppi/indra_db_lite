@@ -18,6 +18,8 @@ import sqlite3
 from .tables.agent_texts import ensure_agent_texts_table
 from .tables.best_content import ensure_best_content_table
 from .tables.entrez import ensure_entrez_pmids_table
+from .tables.mesh import ensure_mesh_pmids_table
+from .tables.mesh import ensure_mesh_xrefs_table
 from .tables.pmid_text_refs import ensure_pmid_text_ref_table
 from .util import get_sqlite_tables
 
@@ -160,6 +162,8 @@ def construct_local_database(
     ensure_best_content_table(outpath)
     ensure_entrez_pmids_table(outpath)
     ensure_pmid_text_ref_table(outpath)
+    ensure_mesh_pmids_table(outpath)
+    ensure_mesh_xrefs_table(outpath)
     move_table(agent_texts_db_path, outpath, 'agent_texts')
     move_table(best_content_db_path, outpath, 'best_content')
     move_table(entities_db_path, outpath, 'entrez_pmids')
