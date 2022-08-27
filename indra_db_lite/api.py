@@ -8,6 +8,7 @@ import re
 from contextlib import closing
 import json
 import sqlite3
+import zlib
 from typing import Collection, Dict, List, Iterator, Optional, Tuple, Union
 
 from indra_db_lite.locations import INDRA_DB_LITE_LOCATION
@@ -211,6 +212,12 @@ def _get_paragraphs_for_text_ref_ids_helper(
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
             for row in cur.execute(query, text_ref_ids):
+                # Check if content is compressed and decompress if needed.
+                # Doing this for every iteration in the for loop has a
+                # negligible impact on performance so preference is given to
+                # simplifying the logic.
+                if isinstance(row[2], bytes):
+                    row[2] = zlib.decompress(row[2]).decode("utf-8")
                 yield tuple(row)
 
 
