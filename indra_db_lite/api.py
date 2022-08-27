@@ -739,9 +739,10 @@ def get_text_sample(
     """
     with closing(sqlite3.connect(INDRA_DB_LITE_LOCATION)) as conn:
         with closing(conn.cursor()) as cur:
-            rows = (
-                tuple(row) for row in cur.execute(
-                    query, text_types + (num_samples, )
-                ).fetchall()
-            )
-    return TextContent(rows)
+            def row_iterator():
+                "Iterate through rows to avoid using extra memory."""
+                for row in cur.execute(query, text_types + (num_samples)):
+                    if isinstance(row[2], bytes):
+                        row[2] = zlib.decompress(row[2]).decode("utf-8")
+                    yield tuple(row)
+    return TextContent(row_iterator())
