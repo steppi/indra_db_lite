@@ -24,3 +24,5 @@ take over an hour to download and decompress the db file. Once completed,
 indra_db_lite should be ready to use.
 
 
+## Construction
+Run each script in construct/tables separately and then run construct/assembly.
