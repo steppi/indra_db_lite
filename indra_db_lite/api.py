@@ -20,6 +20,7 @@ __all__ = [
     "get_mesh_terms_for_grounding",
     "get_paragraphs_for_text_ref_ids",
     "get_plaintexts_for_text_ref_ids",
+    "get_plaintexts_for_pmids",
     "get_pmids_for_mesh_term",
     "get_pmids_for_text_ref_ids",
     "get_taxon_id_for_uniprot",
@@ -320,6 +321,53 @@ def get_plaintexts_for_text_ref_ids(
     content = get_paragraphs_for_text_ref_ids(text_ref_ids)
     content.process(contains=contains, text_types=text_types)
     return content
+
+
+def get_plaintexts_for_pmids(pmids: Collection[int]) -> TextContent:
+    """Returns processed plaintexts for articles with input pmids.
+
+    The local database contains the best piece of content for each text_ref_id
+    within an indra_db instance from which the local db was constructed, at the
+    time of construction. The prioritization of content is
+
+        fulltext > abstract > title
+
+    Fulltexts are futher prioritized by source, so that
+
+        pmc_oa > manuscripts > cord19_pmc_xml > elsevier > cord19_pdf
+
+    Abstracts are prioritized by source according to
+
+        pubmed > cord19_abstract
+
+    It is not common, but sometimes the same piece of content is available from
+    multiple sources.
+
+    Parameters
+    ----------
+    pmids : Collection of int
+        A collection of pmids. These are ids into the text_ref table of
+        the indra_db instance that has been dumped into the local db.
+
+    Returns
+    -------
+    py:class:`indra_db_lite.api.TextContent`
+        A TextContent object containing the best pieces of content in the local
+        db corresponding to the given pmids.
+    """
+    pmid_to_trid = get_text_ref_ids_for_pmids(pmids)
+    # Reverse the mapping to map text_ref_ids back to pmids
+    trid_to_pmid = {v: k for k, v in pmid_to_trid.items()}
+
+    text_content = get_plaintexts_for_text_ref_ids(pmid_to_trid.values())
+    for content_attr in ["fulltexts", "abstracts", "titles"]:
+        attr = getattr(text_content, content_attr)
+        content_by_pmid = {
+            trid_to_pmid[text_ref_id]: content
+            for text_ref_id, content in attr.items()
+        }
+        text_content.__setattr__(content_attr, content_by_pmid)
+    return text_content
 
 
 def _get_text_ref_ids_for_pmids_helper(
