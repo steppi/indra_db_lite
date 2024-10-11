@@ -303,3 +303,4 @@ if __name__ == '__main__':
     if 'mesh_xrefs' not in get_sqlite_tables(mesh_db_path):
         logger.info('Inserting into mesh xrefs table.')
         insert_into_mesh_xrefs_table(
+            mesh_xrefs_path, mesh_db_path)
