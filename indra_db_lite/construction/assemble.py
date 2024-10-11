@@ -9,8 +9,7 @@ indices are added to the final combined table.
 A function is also provided that automates the process of moving all tables
 into the final db and adding indices.
 """
-
-
+import argparse
 from contextlib import closing
 import os
 import sqlite3
@@ -172,3 +171,23 @@ def construct_local_database(
     add_indices_to_pmid_text_refs_table(outpath)
     add_indices_to_mesh_pmids_table(outpath)
     add_indices_to_mesh_xrefs_table(outpath)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("outpath")
+    parser.add_argument("agent_texts_db_path")
+    parser.add_argument("best_content_db_path")
+    parser.add_argument("entities_db_path")
+    parser.add_argument("pmid_text_refs_db_path")
+    parser.add_argument("mesh_db_path")
+
+    args = parser.parse_args()
+
+    construct_local_database(
+        outpath=args.outpath,
+        agent_texts_db_path=args.agent_texts_db_path,
+        best_content_db_path=args.best_content_db_path,
+        entities_db_path=args.entities_db_path,
+        pmid_text_refs_db_path=args.pmid_text_refs_db_path,
+        mesh_db_path=args.mesh_db_path
+    )
