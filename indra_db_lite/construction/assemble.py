@@ -9,8 +9,7 @@ indices are added to the final combined table.
 A function is also provided that automates the process of moving all tables
 into the final db and adding indices.
 """
-
-
+import argparse
 from contextlib import closing
 import os
 import sqlite3
@@ -19,6 +18,7 @@ from .tables.agent_texts import ensure_agent_texts_table
 from .tables.best_content import ensure_best_content_table
 from .tables.entrez import ensure_entrez_pmids_table
 from .tables.pmid_text_refs import ensure_pmid_text_ref_table
+from .tables.mesh import ensure_mesh_xrefs_table, ensure_mesh_pmids_table
 from .util import get_sqlite_tables
 
 
@@ -160,6 +160,8 @@ def construct_local_database(
     ensure_best_content_table(outpath)
     ensure_entrez_pmids_table(outpath)
     ensure_pmid_text_ref_table(outpath)
+    ensure_mesh_pmids_table(outpath)
+    ensure_mesh_xrefs_table(outpath)
     move_table(agent_texts_db_path, outpath, 'agent_texts')
     move_table(best_content_db_path, outpath, 'best_content')
     move_table(entities_db_path, outpath, 'entrez_pmids')
@@ -172,3 +174,23 @@ def construct_local_database(
     add_indices_to_pmid_text_refs_table(outpath)
     add_indices_to_mesh_pmids_table(outpath)
     add_indices_to_mesh_xrefs_table(outpath)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("outpath")
+    parser.add_argument("agent_texts_db_path")
+    parser.add_argument("best_content_db_path")
+    parser.add_argument("entities_db_path")
+    parser.add_argument("pmid_text_refs_db_path")
+    parser.add_argument("mesh_db_path")
+
+    args = parser.parse_args()
+
+    construct_local_database(
+        outpath=args.outpath,
+        agent_texts_db_path=args.agent_texts_db_path,
+        best_content_db_path=args.best_content_db_path,
+        entities_db_path=args.entities_db_path,
+        pmid_text_refs_db_path=args.pmid_text_refs_db_path,
+        mesh_db_path=args.mesh_db_path
+    )

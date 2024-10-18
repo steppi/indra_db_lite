@@ -5,6 +5,8 @@ import gzip
 from hashlib import md5
 import io
 import logging
+from typing import Iterable
+
 import lxml.etree as etree
 import os
 import pandas as pd
@@ -13,6 +15,8 @@ import requests
 import sqlite3
 
 import famplex
+from bs4 import BeautifulSoup
+
 from indra.databases.identifiers import ensure_prefix_if_needed
 from indra.databases.identifiers import get_ns_from_identifiers
 from indra.databases.mesh_client import mesh_to_db
@@ -140,15 +144,38 @@ def create_mesh_xrefs_csv(
     result.reset_index(inplace=True, drop=True)
     result.to_csv(outpath, sep=',', index=True, header=False)
 
+def get_url_paths(url: str) -> Iterable[str]:
+    """Get the paths to all XML files on the PubMed FTP server."""
+    logger.info("Getting URL paths from %s" % url)
+
+    # Get page
+    response = requests.get(url)
+    response.raise_for_status()
+
+    # Make soup
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # Append trailing slash if not present
+    url = url if url.endswith("/") else url + "/"
+
+    # Loop over all links
+    for link in soup.find_all("a"):
+        href = link.get("href")
+        # yield if href matches
+        # 'pubmed<2 digit year>n<4 digit file index>.xml.gz'
+        # but skip the md5 files
+        if href and href.startswith("pubmed") and href.endswith(".xml.gz"):
+            yield url + href
 
 def download_medline_pubmed_data(outpath: str) -> None:
     if not os.path.exists(outpath):
         os.mkdir(outpath)
     base_url = "https://ftp.ncbi.nlm.nih.gov/pubmed/baseline/"
-    for i in range(1, 1063):
-        xml_file = f"pubmed21n{str(i).zfill(4)}.xml"
-        response = requests.get(base_url + xml_file + '.gz')
-        md5_response = requests.get(base_url + xml_file + '.gz.md5')
+    basefiles = [u for u in get_url_paths(base_url)]
+    for url in basefiles:
+        xml_file = url.split("/")[-1]
+        response = requests.get(url)
+        md5_response = requests.get(base_url + xml_file + '.md5')
         actual_checksum = md5(response.content).hexdigest()
         expected_checksum = re.search(
             r'[0-9a-z]+(?=\n)', md5_response.content.decode('utf-8')
@@ -276,4 +303,4 @@ if __name__ == '__main__':
     if 'mesh_xrefs' not in get_sqlite_tables(mesh_db_path):
         logger.info('Inserting into mesh xrefs table.')
         insert_into_mesh_xrefs_table(
-            mesh_xrefs_path, 'mesh_xrefs', mesh_db_path)
+            mesh_xrefs_path, mesh_db_path)
